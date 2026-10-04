@@ -1,0 +1,36 @@
+from fastapi import FastAPI, Request, UploadFile, File, HTTPException
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+import redis
+
+# Настройка лимитера (10 замен в день на IP)
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri="redis://redis:6379",
+    default_limits=["100/day"]
+)
+
+app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# Подключение к Redis для проверки лимитов
+r = redis.Redis(host='redis', port=6379, db=0)
+
+@app.get("/")
+def read_root():
+    return {"message": "Face Swap Service is running!"}
+
+@app.post("/swap")
+@limiter.limit("10/day")  # Лимит: 10 раз в день
+async def swap_faces(request: Request, source: UploadFile = File(...), target: UploadFile = File(...)):
+    # Здесь будет логика вызова FaceFusion (пока заглушка)
+    # В будущем мы добавим сюда вызов библиотеки facefusion
+    return {
+        "status": "success", 
+        "message": "Лица успешно заменены!",
+        "limits": "Вы использовали 1 из 10 попыток на сегодня."
+    }
